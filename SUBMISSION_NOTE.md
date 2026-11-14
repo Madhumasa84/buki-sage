@@ -23,7 +23,7 @@ The connector pulls five core Sage resources and normalizes them into Buki's fou
 
 ## When Sage is slow, down, or returns something unexpected
 
-- **Timeouts & Slow Responses**: Every Sage API request is wrapped with an `AbortSignal.timeout(30_000)` (30 seconds). If Sage hangs, a typed `SageError("timeout")` is raised.
+- **Timeouts & Slow Responses**: Every Sage API request is wrapped with an `AbortSignal.timeout(15_000)` (15 seconds). If Sage hangs, a typed `SageError("timeout")` is raised (verified via unit test).
 - **API Down or HTTP Errors**: Network disconnects, 5xx server errors, and 429 rate limits throw a typed `SageError("network" | "http")`.
 - **Token Expiry**: Sage access tokens expire in 300 seconds. An internal mutex lock (`refreshPromise`) deduplicates concurrent refresh requests, preventing race conditions on single-use refresh tokens. If credentials or refresh tokens are invalid, a `SageError("auth")` is thrown.
 - **Store Preservation**: `runSync` performs all domain pulls in memory before writing to disk. If any pull fails, the existing store is preserved unchanged (`ok: false` run recorded). Stale data with a visible failure is displayed; figures are never zeroed out.
