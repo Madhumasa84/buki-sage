@@ -8,6 +8,7 @@
   },
   "scripts": {
     "mock": "node mock/bamboohr/server.mjs",
+    "sage:auth": "tsx scripts/sage-auth.ts",
     "health": "tsx src/cli.ts health",
     "sync": "tsx src/cli.ts sync",
     "cron": "tsx src/cli.ts cron",
@@ -18,7 +19,9 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@types/newman": "^5.3.6",
     "@types/node": "^22",
+    "newman": "^6.2.3",
     "tsx": "^4",
     "typescript": "^5",
     "vitest": "^5"

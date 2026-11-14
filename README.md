@@ -22,6 +22,7 @@ Every command:
 | Command | What it does |
 | --- | --- |
 | `npm run mock` | The mock BambooHR on port 4010 |
+| `npm run sage:auth` | Authorize Sage OAuth 2.0 app, select business, and save tokens to `.data/` |
 | `npm run health` | Each configured provider's `health()` and what the store last synced |
 | `npm run sync` | One sync of every configured domain, one line per run, exit 1 if a run failed |
 | `npm run cron` | The same on a loop, every `SYNC_INTERVAL_SECONDS` (300 by default, 5 at least) |
@@ -44,6 +45,28 @@ With the mock BambooHR as the source, ask these. The sample data is fixed but th
 | `npm run ask -- "How much cash do we have?"` | "No finance source connected yet." That is the gap you are closing. |
 
 Every answer ends with the source it came from and when it was synced. `npm run show -- people` prints the same figures as a module: headcount, who joined and left, cost by department, the roster. `npm run health` says what is connected.
+
+### Connecting Sage
+
+1. Set `FINANCE_SOURCE=sage` in `.env`.
+2. Add your developer app credentials to `.env`:
+   ```bash
+   SAGE_CLIENT_ID=your-client-id
+   SAGE_CLIENT_SECRET=your-client-secret
+   SAGE_CALLBACK_URL=http://localhost:3000/api/sage/callback
+   ```
+3. Run OAuth authorization:
+   ```bash
+   npm run sage:auth
+   ```
+   Open the browser URL, log in with your trial business user account, authorize, and select your business. Tokens are stored in `.data/sage-tokens.json` (gitignored) and `SAGE_BUSINESS_ID` is saved to `.env`.
+4. Run live sync and verify:
+   ```bash
+   npm run sync
+   npm run show -- finance
+   npm run ask -- "who owes us money"
+   npm run ask -- "what did we spend on software last month"
+   ```
 
 ## How a module expects its data
 
