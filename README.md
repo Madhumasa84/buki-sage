@@ -4,69 +4,119 @@ Buki answers questions about a company (briefs) and shows its data in modules. E
 
 It is for the **Bring Sage into Buki** evaluation. It is not the product and it is not production code. The sample company, **Halden Labs**, is made up, and nothing in this repository is real company data.
 
-## Quick start
+## Quick start & Reproduction Guide
 
-You need **Node 22**. Then:
+You need **Node 22** (or Node 20+). Follow these step-by-step instructions to run the connector from scratch:
 
-```
+### 1. Clone & Install
+
+```bash
+git clone https://github.com/Madhumasa84/buki-sage.git
+cd buki-sage
 npm install
 cp .env.example .env
-npm run mock                       # terminal 1: the mock BambooHR on http://localhost:4010
-npm run sync                       # terminal 2: one sync of every configured source
-npm run ask -- "how many people"
-npm run show -- people
 ```
 
-Every command:
+Ensure `.env` contains your Sage application credentials:
+```bash
+FINANCE_SOURCE=sage
+SAGE_CLIENT_ID=your-client-id
+SAGE_CLIENT_SECRET=your-client-secret
+SAGE_CALLBACK_URL=http://localhost:3000/api/sage/callback
+```
+
+---
+
+### 2. Connect Sage (One-Time Interactive OAuth)
+
+Run the OAuth setup helper:
+```bash
+npm run sage:auth
+```
+1. It starts a local callback listener on port 3000 and opens Sage's official consent portal in your default browser.
+2. Sign in with your Sage developer account, click **"Allow"**, and select your trial business.
+3. The script automatically exchanges the authorization code, writes your `SAGE_BUSINESS_ID` into `.env`, and stores rolling tokens in `.data/sage-tokens.json` (strictly ignored by Git).
+
+---
+
+### 3. Start Mock HR Server & Execute Live Sync
+
+Start the mock BambooHR server in the background (or in a separate terminal window):
+```bash
+npm run mock > /dev/null 2>&1 &
+```
+
+Execute a live sync across both HR and Finance domains:
+```bash
+npm run sync
+```
+*(Run `npm run sync` a second time to verify complete idempotency: `added 0, changed 0, removed 0`).*
+
+---
+
+### 4. View Finance Module & Ask Required Questions
+
+Inspect the canonical Finance module output:
+```bash
+npm run show -- finance
+```
+* Shows Cash across active bank accounts (GBP 497).
+* Shows Overdue Receivables (GBP 109,476 across 49 past-due invoices).
+* Shows October Computer & Software spend (GBP 2,350).
+
+Ask the two required business questions:
+```bash
+npm run ask -- "who owes us money"
+npm run ask -- "what did we spend on software last month"
+```
+
+Validate canonical schema integrity:
+```bash
+npm run check -- .data/finance-set.json
+```
+*(Confirms 0 errors, 0 warnings across all 676 live records).*
+
+---
+
+### 5. Scheduled Sync & Live Sage Invoice Edit
+
+In Terminal 1, run the scheduler in fast test mode (5-second loop):
+```bash
+SYNC_INTERVAL_SECONDS=5 npm run cron
+```
+
+In Terminal 2, simulate an invoice edit in Sage (updating trial invoice `SI-1` to net £10,500):
+```bash
+npx tsx scripts/edit-invoice.ts
+```
+The scheduled cron immediately detects the updated entity timestamp (`updated_at`), logs `pulled: 1, changed: 1`, and atomically updates `.data/store.json`.
+
+---
+
+### 6. Run Test Suite & Typecheck
+
+```bash
+npm test          # 55 unit tests passing in Vitest
+npm run typecheck # Strict TypeScript check (tsc --noEmit)
+```
+
+---
+
+### Command Reference
 
 | Command | What it does |
 | --- | --- |
-| `npm run mock` | The mock BambooHR on port 4010 |
-| `npm run sage:auth` | Authorize Sage OAuth 2.0 app, select business, and save tokens to `.data/` |
-| `npm run health` | Each configured provider's `health()` and what the store last synced |
-| `npm run sync` | One sync of every configured domain, one line per run, exit 1 if a run failed |
-| `npm run cron` | The same on a loop, every `SYNC_INTERVAL_SECONDS` (300 by default, 5 at least) |
-| `npm run show -- people` | The People module, as text |
-| `npm run show -- finance` | The Finance module, as text |
-| `npm run ask -- "<question>"` | The brief: an answer, its figures, and what it cites |
-| `npm run check -- <file.json>` | Validate a canonical finance set, then show what it answers |
-| `npm test`, `npm run typecheck` | vitest and tsc |
-
-### 60-second smoke test
-
-With the mock BambooHR as the source, ask these. The sample data is fixed but the calendar is not: these are the answers in **October 2026**. Asked in November, "last month" is October (three names) and "this month" is November (two).
-
-| Ask | Expect |
-| --- | --- |
-| `npm run ask -- "How many people?"` | **43** people on the payroll, 2 more with a start date after today |
-| `npm run ask -- "Who joined last month?"` | **3** names for September 2026: Arjun Desai, Camila Santos, Nathan Osei |
-| `npm run ask -- "What does the Engineering team cost?"` | **$2,228,000** a year across 14 people, and "1 of 15 have no salary on file, so this is a floor" |
-| `npm run ask -- "Who reports to Marcus Whitfield?"` | **6** names |
-| `npm run ask -- "How much cash do we have?"` | "No finance source connected yet." That is the gap you are closing. |
-
-Every answer ends with the source it came from and when it was synced. `npm run show -- people` prints the same figures as a module: headcount, who joined and left, cost by department, the roster. `npm run health` says what is connected.
-
-### Connecting Sage
-
-1. Set `FINANCE_SOURCE=sage` in `.env`.
-2. Add your developer app credentials to `.env`:
-   ```bash
-   SAGE_CLIENT_ID=your-client-id
-   SAGE_CLIENT_SECRET=your-client-secret
-   SAGE_CALLBACK_URL=http://localhost:3000/api/sage/callback
-   ```
-3. Run OAuth authorization:
-   ```bash
-   npm run sage:auth
-   ```
-   Open the browser URL, log in with your trial business user account, authorize, and select your business. Tokens are stored in `.data/sage-tokens.json` (gitignored) and `SAGE_BUSINESS_ID` is saved to `.env`.
-4. Run live sync and verify:
-   ```bash
-   npm run sync
-   npm run show -- finance
-   npm run ask -- "who owes us money"
-   npm run ask -- "what did we spend on software last month"
-   ```
+| `npm run mock` | Mock BambooHR server on port 4010 |
+| `npm run sage:auth` | Authorize Sage OAuth 2.0 app, discover business ID, and save tokens to `.data/` |
+| `npm run health` | Check provider health and last sync timestamps |
+| `npm run sync` | Pull and reconcile all configured domains (BambooHR & Sage) |
+| `npm run cron` | Scheduled sync on a loop (`SYNC_INTERVAL_SECONDS=300` default, `5` minimum) |
+| `npm run show -- people` | Print the People module as text |
+| `npm run show -- finance` | Print the Finance module as text |
+| `npm run ask -- "<question>"` | Answer business questions using the canonical store |
+| `npm run check -- <file.json>` | Validate canonical schema adherence (checks rules, types, and references) |
+| `npm test` | Run full Vitest unit test suite (55 tests) |
+| `npm run typecheck` | Run static TypeScript compiler checks (`tsc --noEmit`) |
 
 ## How a module expects its data
 
